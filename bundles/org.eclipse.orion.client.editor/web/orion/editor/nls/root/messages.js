@@ -143,6 +143,7 @@ define({
 	"viyank": "(Yank)", //$NON-NLS-1$ //$NON-NLS-0$
 	"videlete": "(Delete)", //$NON-NLS-1$ //$NON-NLS-0$
 	"vichange": "(Change)", //$NON-NLS-1$ //$NON-NLS-0$
+	"viCommandLine": "Open Vi Command Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viLeft": "${0} Left", //$NON-NLS-1$ //$NON-NLS-0$
 	"viRight": "${0} Right", //$NON-NLS-1$ //$NON-NLS-0$
 	"viUp": "${0} Up", //$NON-NLS-1$ //$NON-NLS-0$

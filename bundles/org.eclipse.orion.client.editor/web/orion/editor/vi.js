@@ -3,9 +3,10 @@
 define("orion/editor/vi", [ //$NON-NLS-0$
 		"i18n!orion/editor/nls/messages", //$NON-NLS-0$
 		"orion/editor/keyModes", //$NON-NLS-0$
+		"orion/editor/viCommandLine", //$NON-NLS-0$
 		"orion/keyBinding",  //$NON-NLS-0$
 		"orion/util" //$NON-NLS-0$
-], function (messages, mKeyMode, mKeyBinding, util) {
+], function (messages, mKeyMode, mCommandLine, mKeyBinding, util) {
 	
 	var yankText, yankEditLine;
 	
@@ -465,41 +466,6 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		}
 	});
 	
-	//Status Line Mode
-	function StatusLineMode(viMode) {
-		var view = viMode.getView();
-		this.viMode = viMode;
-		mKeyMode.KeyMode.call(this, view);
-		this._createActions(view);
-	}
-	StatusLineMode.prototype = new mKeyMode.KeyMode(); 
-	mixin(StatusLineMode.prototype, /** @lends orion.editor.viMode.StatusLineMode.prototype */ {
-		createKeyBindings: function() {
-			var bindings = [];
-			bindings.push({actionID: "vi-:-ESC",		keyBinding: createStroke(27), predefined: true}); //$NON-NLS-0$
-			return bindings;
-		},
-		_createActions: function(view) {
-			var self = this;
-			view.setAction("vi-:-ESC", function() { //$NON-NLS-0$
-				view.removeKeyMode(self);
-				view.addKeyMode(self.viMode);
-				return true;
-			});
-		},
-		match: function(e) {
-			var result = mKeyMode.KeyMode.prototype.match.call(this, e);
-			if (!result) {
-				result = this.getView().getKeyModes()[0].match(e);
-			}
-			return result;
-		},
-		storeNumber: function(n) {
-			this.number = n;
-		}
-	});
-	
-	
 	//Edit Mode
 	function EditMode(viMode, nextMode, key, msg) {
 		this.viMode = viMode;
@@ -626,6 +592,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
 		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
 		this.statusReporter = statusReporter;
+		this.commandLine = new mCommandLine.ViCommandLine(textView);
 	}
 	VIMode.prototype = new NumberMode(); 
 	mixin(VIMode.prototype, /** @lends orion.editor.viMode.VIMode.prototype */ {
@@ -638,8 +605,8 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			bindings.push({actionID: "vi-ctrl-e",	keyBinding: createStroke("e", true)});  //$NON-NLS-1$ //$NON-NLS-0$
 			bindings.push({actionID: "vi-ctrl-y",	keyBinding: createStroke("y", true)});  //$NON-NLS-1$ //$NON-NLS-0$
 
-			//Status Line mode
-			bindings.push({actionID: "statusLineMode",	keyBinding: createStroke(":", false, false, false, false, "keypress")});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			//Command line
+			bindings.push({actionID: "vi-commandline",	keyBinding: createStroke(":", false, false, false, false, "keypress")});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			
 			
 			//Insert
@@ -856,20 +823,12 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				return self._invoke("deleteLineEnd"); //$NON-NLS-0$
 			}, {name: messages.deleteLineEnd});
 				
-//			Status Line Mode
-//			view.setAction("statusLineMode", function() { //$NON-NLS-0$
-//				self.insertMode.storeNumber(self.number);
-//				view.removeKeyMode(self);
-//				view.addKeyMode(self.insertMode);
-//				self.number = "";
-//				return true;
-//			});
+			view.setAction("vi-commandline", function() { //$NON-NLS-0$
+				self.commandLine.show();
+				return true;
+			}, {name: messages.viCommandLine});
 		},
-		_reportStatus: function(msg) {
-			if (this.statusReporter) {
-				this.statusReporter(msg);
-			}
-		}, 
+
 		_toInsertMode: function(action, data) {
 			data =  data || {};
 			var num = 1;
