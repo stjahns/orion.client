@@ -761,7 +761,7 @@ var exports = {};
 			imageClass: "git-sprite-open", //$NON-NLS-0$
 			spriteClass: "gitCommandSprite",
 			hrefCallback: function(data) {
-				return require.toUrl("edit/edit.html")+"#" + data.items.ContentLocation; //$NON-NLS-1$ //$NON-NLS-0$
+				return require.toUrl("git/git-commit.html#") + data.items.Location + "?page=1&pageSize=1"; //$NON-NLS-1$ //$NON-NLS-0$
 			},
 			visibleWhen : function(item) {
 				return item.Type === "Commit" && item.ContentLocation != null && !explorer.isDirectory; //$NON-NLS-0$
