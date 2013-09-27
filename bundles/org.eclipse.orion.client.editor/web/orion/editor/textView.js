@@ -1854,6 +1854,25 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			return this._getScroll().y;
 		},
 		/**
+		 * Returns the word under the caret
+		 *
+		 * @returns {String} the word currently under the caret.
+		 */
+		getWordUnderCaret: function() {
+			var selection = this._getSelection();
+			var caret = selection.getCaret();
+			var model = this._model;
+			var lineIndex = model.getLineAtOffset(caret);
+			var line = this._getLine(lineIndex);
+
+			var wordStart = line.getNextOffset(caret + 1, {unit:"word", count:-1}); //$NON-NLS-0$
+			var wordEnd = line.getNextOffset(wordStart, {unit:"wordend", count:1}); //$NON-NLS-0$
+
+			line.destroy();
+
+			return this.getText(wordStart, wordEnd).trim();
+		},
+		/**
 		 * Executes the action handler associated with the given action ID.
 		 * <p>
 		 * The application defined action takes precedence over predefined actions unless
