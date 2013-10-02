@@ -850,9 +850,15 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			}, {name: messages.deleteLineEnd});
 
 			view.setAction("vi-*", function() { //$NON-NLS-0$
+
 				// Get word under caret
 				var view = self.getView();
-				var text = view.getWordUnderCaret();
+				var caret = view.getCaretOffset();
+				var wordStart = view.getNextOffset(caret + 1, "word", -1); //$NON-NLS-0$
+				var wordEnd = view.getNextOffset(wordStart, "wordend", 1); //$NON-NLS-0$
+				var text = view.getText(wordStart, wordEnd);
+				
+				// Search for the word
 				self._searchFwd = true;
 				var data = {
 					hideAfterFind: true,
