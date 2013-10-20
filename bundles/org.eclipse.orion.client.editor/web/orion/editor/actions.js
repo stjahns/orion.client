@@ -79,6 +79,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("k", true), "findNext"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("findNext", function(options) { //$NON-NLS-0$
 				if (this._find){
+					options.useLastString = true;
 					this._find.find(true, options);
 					return true;
 				}
@@ -88,6 +89,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			textView.setKeyBinding(new mKeyBinding.KeyBinding("k", true, true), "findPrevious"); //$NON-NLS-1$ //$NON-NLS-0$
 			textView.setAction("findPrevious", function(options) { //$NON-NLS-0$
 				if (this._find){
+					options.useLastString = true;
 					this._find.find(false, options);
 					return true;
 				}
@@ -536,8 +538,8 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 		init: function() {
 			var textView = this.editor.getTextView();
 
-			textView.setAction("lineStart", function() { //$NON-NLS-0$
-				return this.lineStart();
+			textView.setAction("lineStart", function(data) { //$NON-NLS-0$
+				return this.lineStart(data);
 			}.bind(this));
 
 			textView.setAction("enter", function() { //$NON-NLS-0$
@@ -945,7 +947,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			}
 			return {commentStart: commentStart, commentEnd: commentEnd};
 		},
-		lineStart: function() {
+		lineStart: function(args) {
 			var editor = this.editor;
 			var model = editor.getModel();
 			var caretOffset = editor.getCaretOffset();
@@ -961,7 +963,15 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			}
 			offset += lineOffset;
 			if (caretOffset !== offset) {
-				editor.setSelection(offset, offset);
+				if (args.select) {
+					var view = editor.getTextView();
+					var selection = view.getSelection();
+					var caret = view.getCaretOffset();
+					var anchor = (selection.start === caret) ? selection.end : selection.start;
+					view.setSelection(anchor, offset);
+				} else {
+					editor.setSelection(offset, offset);
+				}
 				return true;
 			}
 			return false;

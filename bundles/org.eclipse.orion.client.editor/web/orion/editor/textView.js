@@ -4645,22 +4645,22 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 			this._actions = {
 				"noop": {defaultHandler: function() {return self._doNoop();}}, //$NON-NLS-0$
 
-				"lineUp": {defaultHandler: function(data) {return self._doLineUp(merge(data,{select: false}));}, actionDescription: {name: messages.lineUp}}, //$NON-NLS-0$
-				"lineDown": {defaultHandler: function(data) {return self._doLineDown(merge(data,{select: false}));}, actionDescription: {name: messages.lineDown}}, //$NON-NLS-0$
-				"lineStart": {defaultHandler: function(data) {return self._doHome(merge(data,{select: false, ctrl:false}));}, actionDescription: {name: messages.lineStart}}, //$NON-NLS-0$
-				"lineEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{select: false, ctrl:false}));}, actionDescription: {name: messages.lineEnd}}, //$NON-NLS-0$
-				"charPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{select: false, unit:"character"}));}, actionDescription: {name: messages.charPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"charNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{select: false, unit:"character"}));}, actionDescription: {name: messages.charNext}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"pageUp": {defaultHandler: function(data) {return self._doPageUp(merge(data,{select: false}));}, actionDescription: {name: messages.pageUp}}, //$NON-NLS-0$
-				"pageDown": {defaultHandler: function(data) {return self._doPageDown(merge(data,{select: false}));}, actionDescription: {name: messages.pageDown}}, //$NON-NLS-0$
+				"lineUp": {defaultHandler: function(data) {return self._doLineUp(data);}, actionDescription: {name: messages.lineUp}}, //$NON-NLS-0$
+				"lineDown": {defaultHandler: function(data) {return self._doLineDown(data);}, actionDescription: {name: messages.lineDown}}, //$NON-NLS-0$
+				"lineStart": {defaultHandler: function(data) {return self._doHome(merge(data,{ctrl:false}));}, actionDescription: {name: messages.lineStart}}, //$NON-NLS-0$
+				"lineEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{ctrl:false}));}, actionDescription: {name: messages.lineEnd}}, //$NON-NLS-0$
+				"charPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{unit:"character"}));}, actionDescription: {name: messages.charPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"charNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{unit:"character"}));}, actionDescription: {name: messages.charNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"pageUp": {defaultHandler: function(data) {return self._doPageUp(data);}, actionDescription: {name: messages.pageUp}}, //$NON-NLS-0$
+				"pageDown": {defaultHandler: function(data) {return self._doPageDown(data);}, actionDescription: {name: messages.pageDown}}, //$NON-NLS-0$
 				"scrollPageUp": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "pageUp"}));}, actionDescription: {name: messages.scrollPageUp}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"scrollPageDown": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "pageDown"}));}, actionDescription: {name: messages.scrollPageDown}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"scrollLineUp": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "lineUp"}));}, actionDescription: {name: messages.scrollLineUp}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"scrollLineDown": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "lineDown"}));}, actionDescription: {name: messages.scrollLineDown}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"wordPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{select: false, unit:"word"}));}, actionDescription: {name: messages.wordPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"wordNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{select: false, unit:"word"}));}, actionDescription: {name: messages.wordNext}}, //$NON-NLS-1$ //$NON-NLS-0$
-				"textStart": {defaultHandler: function(data) {return self._doHome(merge(data,{select: false, ctrl:true}));}, actionDescription: {name: messages.textStart}}, //$NON-NLS-0$
-				"textEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{select: false, ctrl:true}));}, actionDescription: {name: messages.textEnd}}, //$NON-NLS-0$
+				"wordPrevious": {defaultHandler: function(data) {return self._doCursorPrevious(merge(data,{unit:"word"}));}, actionDescription: {name: messages.wordPrevious}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"wordNext": {defaultHandler: function(data) {return self._doCursorNext(merge(data,{unit:"word"}));}, actionDescription: {name: messages.wordNext}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"textStart": {defaultHandler: function(data) {return self._doHome(merge(data,{ctrl:true}));}, actionDescription: {name: messages.textStart}}, //$NON-NLS-0$
+				"textEnd": {defaultHandler: function(data) {return self._doEnd(merge(data,{ctrl:true}));}, actionDescription: {name: messages.textEnd}}, //$NON-NLS-0$
 				"scrollTextStart": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "textStart"}));}, actionDescription: {name: messages.scrollTextStart}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"scrollTextEnd": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "textEnd"}));}, actionDescription: {name: messages.scrollTextEnd}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"centerLine": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "centerLine"}));}, actionDescription: {name: messages.centerLine}}, //$NON-NLS-1$ //$NON-NLS-0$

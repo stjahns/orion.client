@@ -166,7 +166,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 
 			function findCallback(range, data){
 				if (range) {
-					self.getView().setCaretOffset(range.start);
+					self._moveCaret(range.start);
 				}
 				if (data.editDone) {
 					data.editDone();
@@ -209,9 +209,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			}, this._msg("viB")); //$NON-NLS-0$
 			
 			view.setAction("vi" + key + "e", function() { //$NON-NLS-1$ //$NON-NLS-0$
-				self._invoke("charNext", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
-				self._invoke("wordNext", {unit: "wordend"}); //$NON-NLS-1$ //$NON-NLS-0$
-				self._invoke("charPrevious", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
+				self._moveToWordEnd();
 				return true;
 			}, this._msg("vie")); //$NON-NLS-0$
 			
@@ -229,7 +227,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					var model = view.getModel();
 					var offset = view.getCaretOffset();
 					var lineIndex = model.getLineAtOffset(offset);
-					view.setCaretOffset(model.getLineStart(lineIndex) + firstNonBlankChar(lineIndex));
+					self._moveCaret(model.getLineStart(lineIndex) + firstNonBlankChar(lineIndex));
 				});
 			}, this._msg("vi^_")); //$NON-NLS-0$
 			
@@ -239,7 +237,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					var offset = view.getCaretOffset();
 					var lastLineCount = model.getLineCount() - 1;
 					var lineIndex = Math.min (model.getLineAtOffset(offset) + data.count, lastLineCount);
-					view.setCaretOffset(model.getLineStart(lineIndex) + firstNonBlankChar(lineIndex));
+					self._moveCaret(model.getLineStart(lineIndex) + firstNonBlankChar(lineIndex));
 				}, {editLine:true});
 			}, this._msg("vi+")); //$NON-NLS-0$
 			
@@ -248,7 +246,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					var model = view.getModel();
 					var offset = view.getCaretOffset();
 					var lineIndex = Math.max(model.getLineAtOffset(offset) - data.count, 0);
-					view.setCaretOffset(model.getLineStart(lineIndex) + firstNonBlankChar(lineIndex));
+					self._moveCaret(model.getLineStart(lineIndex) + firstNonBlankChar(lineIndex));
 				}, {editLine:true});
 			}, this._msg("vi-")); //$NON-NLS-0$
 			
@@ -257,28 +255,27 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					var model = view.getModel();
 					var offset = view.getCaretOffset();
 					var lineIndex = model.getLineAtOffset(offset);
-					view.setCaretOffset(Math.min(model.getLineStart(lineIndex) + data.count - 1, model.getLineEnd(lineIndex)));
+					self._moveCaret(Math.min(model.getLineStart(lineIndex) + data.count - 1, model.getLineEnd(lineIndex)));
 				});
 			}, this._msg("vi|")); //$NON-NLS-0$
 			
 			view.setAction("vi" + key + "H", function() { //$NON-NLS-1$ //$NON-NLS-0$
 				return self._invoke(function (data) {
 					var topIndex = view.getModel().getLineStart(view.getTopIndex(true) + (data.count - 1));
-					view.setCaretOffset(topIndex);
+					self._moveCaret(topIndex);
 				}, {editLine:true});
 			}, this._msg("viH")); //$NON-NLS-0$
 			
 			view.setAction("vi" + key + "M", function() { //$NON-NLS-1$ //$NON-NLS-0$
 				return self._invoke(function (data) {
 					var middleIndex = Math.ceil((view.getBottomIndex(true) - view.getTopIndex(true))/2) + view.getTopIndex(true);
-					view.setCaretOffset(view.getModel().getLineStart(middleIndex));
+					self._moveCaret(view.getModel().getLineStart(middleIndex));
 				}, {editLine:true});
 			}, this._msg("viM")); //$NON-NLS-0$
 			
 			view.setAction("vi" + key + "L", function() { //$NON-NLS-1$ //$NON-NLS-0$
 				return self._invoke(function (data) {
-					view.setCaretOffset(view.getModel().getLineStart(view.getBottomIndex(true) - (data.count - 1)));
-				}, {editLine:true});
+					self._moveCaret(view.getModel().getLineStart(view.getBottomIndex(true) - (data.count - 1))); }, {editLine:true});
 			}, this._msg("viL")); //$NON-NLS-0$
 			
 			//Searches
@@ -412,7 +409,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			var self = this;
 			this._charTempOptions.findCallback = function(range) {
 				if (range) {
-					self.getView().setCaretOffset(range.start + offset);
+					self._moveCaret(range.start + offset);
 				}
 				if (data.editDone) {
 					data.editDone();
@@ -432,7 +429,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				var self = this;
 				tempTempOptions.findCallback = function(range){
 					if (range) {
-						self.getView().setCaretOffset(range.start + self._charTempOptions.offset);
+						self._moveCaret(range.start + self._charTempOptions.offset);
 					}
 					if (data.editDone) {
 						data.editDone();
@@ -453,11 +450,20 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			}
 			return true;
 		},
+		_moveCaret: function(offset) {
+			this.getView().setCaretOffset(offset);
+		},
+		_moveToWordEnd: function() {
+			this._invoke("charNext", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
+			this._invoke("wordNext", {unit: "wordend"}); //$NON-NLS-1$ //$NON-NLS-0$
+			// in normal mode, need to move back a char for expected behavior
+			this._invoke("charPrevious", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
+		},
 		_storeNumber: function(index) {
 			var self = this;
 			if (index === 0 && !this.number) {
 				return this._invoke(function() {
-					self.getView().invokeAction("lineStart", true); //$NON-NLS-0$)
+					self._invoke("lineStart"); //$NON-NLS-0$
 				});
 			}
 			this.number += index;
@@ -575,6 +581,10 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		storeNumber: function(number) {
 			this.firstNumber = number;
 		},
+		_moveToWordEnd: function() {
+			this._invoke("charNext", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
+			this._invoke("wordNext", {unit: "wordend"}); //$NON-NLS-1$ //$NON-NLS-0$
+		},
 		_modeAdded: function() {
 			this.secondNumber = "";
 		},
@@ -619,12 +629,243 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		}
 	});
 
+	/* Visual Mode */
+	function VisualMode(viMode) {
+		NumberMode.call(this, viMode.getView(), "v", messages.vivisual); //$NON-NLS-0$
+		this.viMode = viMode;
+		this.selection = false;
+	}
+
+	VisualMode.prototype = new NumberMode();
+	
+	mixin(VisualMode.prototype, /** @lends orion.editor.viMode.VisualMode.prototype */ {
+		createKeyBindings: function() {
+			var bindings = NumberMode.prototype.createKeyBindings.call(this);
+			bindings.push({actionID: "vi-v-ESC", keyBinding: createStroke(27), predefined: true});//$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-v", keyBinding: createStroke("v"), predefined: true});//$NON-NLS-1$ //$NON-NLS-0$
+
+			bindings.push({actionID: "vi-v-y",	keyBinding: createStroke("y", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-Y",	keyBinding: createStroke("Y", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-x",	keyBinding: createStroke("x", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-X",	keyBinding: createStroke("X", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-c",	keyBinding: createStroke("c", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-C",	keyBinding: createStroke("C", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-d",	keyBinding: createStroke("d", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-D",	keyBinding: createStroke("D", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-r",	keyBinding: createStroke("r", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-v-R",	keyBinding: createStroke("R", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			
+			return bindings;
+		},
+		_createActions: function(view) {
+			
+			NumberMode.prototype._createActions.call(this, view);
+			var self = this;
+			
+			view.setAction("vi-v-ESC", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode);
+				return true;
+			});
+			
+			view.setAction("vi-v-v", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode);
+				return true;
+			});
+
+			view.setAction("vi-v-c", function() { //$NON-NLS-0$
+				// Kill everything in visual selection, yank it and go into insert mode
+				var selection = view.getSelection();
+				yankText = view.getText(selection.start, selection.end);
+				view.setText("", selection.start, selection.end);
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode.insertMode);
+				return true;
+			}, this._msg("vivc")); //$NON-NLS-0$
+
+			view.setAction("vi-v-y", function() { //$NON-NLS-0$
+				// Yank the visual selection
+				var selection = view.getSelection();
+				yankText = view.getText(selection.start, selection.end);
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode);
+				return true;
+			}, this._msg("vivy")); //$NON-NLS-0$
+
+			view.setAction("vi-v-Y", function() { //$NON-NLS-0$
+				// Yank each line that is part of the visual selection
+				var model = view.getModel();
+				var selection = view.getSelection();
+				var startOffset = model.getLineStart(model.getLineAtOffset(selection.start));
+				var endOffset = model.getLineEnd(model.getLineAtOffset(selection.end), true); // include EOL
+				
+				yankText = view.getText(startOffset, endOffset);
+				
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode);
+				return true;
+			}, this._msg("vivY")); //$NON-NLS-0$
+			
+			function killSelection() {
+				// Kill everything in visual selection, yank it
+				var selection = view.getSelection();
+				yankText = view.getText(selection.start, selection.end);
+				view.setText("", selection.start, selection.end);
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode);
+				return true;
+			}
+
+			view.setAction("vi-v-d", killSelection, this._msg("vivx"));  //$NON-NLS-1$ //$NON-NLS-0$
+			view.setAction("vi-v-x", killSelection, this._msg("vivx"));  //$NON-NLS-1$ //$NON-NLS-0$
+			
+			function killLines() {
+				// Kill each line that is part of the visual selection
+				var model = view.getModel();
+				var selection = view.getSelection();
+				var startOffset = model.getLineStart(model.getLineAtOffset(selection.start));
+				var endOffset = model.getLineEnd(model.getLineAtOffset(selection.end), true); // include EOL
+				
+				yankText = view.getText(startOffset, endOffset);
+				view.setText("", startOffset, endOffset);
+				
+				view.removeKeyMode(self);
+				view.addKeyMode(self.viMode);
+				return true;
+			}
+			
+			view.setAction("vi-v-X", killLines, this._msg("vivX")); //$NON-NLS-1$ //$NON-NLS-0$
+			view.setAction("vi-v-D", killLines, this._msg("vivX")); //$NON-NLS-1$ //$NON-NLS-0$
+
+			view.setAction("vi-v-r", function() { //$NON-NLS-0$
+				// TODO when replace mode in
+				// get a char from user, replace every character in selection with that char
+				return true;
+			}, this._msg("vivr")); //$NON-NLS-0$
+		},
+		match: function(e) {
+			var result = mKeyMode.KeyMode.prototype.match.call(this, e);
+			if (!result && e.type === "keypress") { //$NON-NLS-0$
+				result = "noop"; //$NON-NLS-0$
+			}
+			return result;
+		},
+		_invoke: function(action, data) {
+			data = data || {};
+			data.select = true;
+			return NumberMode.prototype._invoke.call(this, action, data);
+		},
+
+		_moveToWordEnd: function() {
+			this._invoke("charNext", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
+			this._invoke("wordNext", {unit: "wordend"}); //$NON-NLS-1$ //$NON-NLS-0$
+		},
+		_modeAdded: function() {
+			var view = this.getView();
+			
+			// Select the character under the 'block'
+			this._invoke("charNext", {unit: "character"}); //$NON-NLS-1$ //$NON-NLS-0$
+
+			this.selection = view.getSelection();
+			this.caret = view.getCaretOffset();
+
+			var self = this;
+			this._listener = {
+				onSelection: function(e) {
+					self.onSelection(e);
+				}
+			};
+			
+			view.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+		},
+		_modeRemoved: function() {
+			var view = this.getView();
+			var selection = view.getSelection();
+			var caret = view.getCaretOffset();
+
+			// if we have selected text in a forward direction, need to move caret back
+			// a space so it ends up where we expect it to be
+			if (selection.end === caret && selection.start !== selection.end) {
+				caret = view.getNextOffset(caret, {unit: "character", count: -1}); //$NON-NLS-0$
+			}
+
+			view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+			view.setSelection(caret, caret);
+		},
+		_moveCaret: function(offset) {
+			var view = this.getView();
+			var caret = view.getCaretOffset();
+			var selection = view.getSelection();
+			var anchorOffset = (caret === selection.start) ? selection.end : selection.start;
+			view.setSelection(anchorOffset, offset);
+		},
+		onSelection: function(e) {
+
+			// The expected behavior of visual mode is that one character is always selected, never none.
+			// So, we need to handle the case where the caret is moved to or back past the selection start,
+			// and adjust the selection so it actually behaves as expected
+			
+			var view = this.getView();
+
+			this.selection = e.newValue;
+			this.caret = view.getCaretOffset();
+
+			var bump = false;
+			if (e.newValue.start === e.newValue.end) {
+				bump = true;
+			}
+			
+			var s1, s2;
+
+			if (e.oldValue.start === e.newValue.end) {
+				view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+				
+				s1 = view.getNextOffset(e.newValue.end, {unit: "character", count: 1}); //$NON-NLS-0$
+				s2= e.newValue.start;
+				
+				if (bump) {
+					s2 = view.getNextOffset(s2, {unit: "character", count: -1}); //$NON-NLS-0$
+				}
+
+				// going left
+				if (this.caret === e.newValue.start) {
+					view.setSelection(s1, s2);
+				} else {
+					view.setSelection(s2, s1);
+				}
+
+				view.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+			}
+			else if (e.newValue.start === e.oldValue.end) {
+				view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+
+				s1 = view.getNextOffset(e.newValue.start, {unit: "character", count: -1}); //$NON-NLS-0$
+				s2 = e.newValue.end;
+				
+				if (bump) {
+					s2 = view.getNextOffset(s2, {unit: "character", count: 1}); //$NON-NLS-0$
+				}
+
+				// going right
+				if (this.caret === e.newValue.end) {
+					view.setSelection(s1, s2);
+				} else {
+					view.setSelection(s2, s1);
+				}
+
+				view.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+			}
+		}
+	});
+
 	function VIMode(textView, statusReporter){
 		NumberMode.call(this, textView, "", messages.vimove); 
 		this.insertMode = new InsertMode(this);
 		this.changeMode = new EditMode(this, this.insertMode, "c", messages.vichange);  //$NON-NLS-0$
 		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
 		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
+		this.visualMode = new VisualMode(this);
 		this.statusReporter = statusReporter;
 	}
 	VIMode.prototype = new NumberMode(); 
@@ -641,7 +882,9 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			//Status Line mode
 			bindings.push({actionID: "statusLineMode",	keyBinding: createStroke(":", false, false, false, false, "keypress")});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			
-			
+			//Visual mode
+			bindings.push({actionID: "vi-v",	keyBinding: createStroke("v", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+
 			//Insert
 			bindings.push({actionID: "vi-a",	keyBinding: createStroke("a", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-A",	keyBinding: createStroke("A", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
@@ -735,6 +978,13 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			view.setAction("vi-ctrl-y", function() { //$NON-NLS-0$
 				return self._invoke("scrollLineUp"); //$NON-NLS-0$
 			}, {name: messages.scrollLineUp});
+
+			// Visual Mode
+			view.setAction("vi-v", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.visualMode);
+				return true;
+			}, {name: messages.viv});
 			
 			//Insert
 			view.setAction("vi-a", function() { //$NON-NLS-0$

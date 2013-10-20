@@ -216,6 +216,9 @@ define("orion/editor/find", [ //$NON-NLS-0$
 				reverse : !forward
 			});
 			var string = this.getFindString();
+			if (tempOptions && tempOptions.useLastString) {
+				string = this._lastString;
+			}
 			var count;
 			if (tempOptions) {
 				string = tempOptions.findString || string;

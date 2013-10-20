@@ -186,7 +186,14 @@ define({
 	"vip": "Paste After Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viP": "Paste Before Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viStar": "Search Word Under Cursor", //$NON-NLS-1$ //$NON-NLS-0$
-
+	"viv": "Enter Visual Mode", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivisual": "(Visual)", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivc": "${0} Change Selection", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivy": "${0} Yank Selection", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivY": "${0} Yank Selection Lines", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivx": "${0} Kill Selection", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivX": "${0} Kill Selection Lines", //$NON-NLS-1$ //$NON-NLS-0$
+	"vivr": "${0} Replace Selection", //$NON-NLS-1$ //$NON-NLS-0$
 
 	"replaceAll": "Replacing all...", //$NON-NLS-1$ //$NON-NLS-0$
 	"replacedMatches": "Replaced ${0} matches", //$NON-NLS-1$ //$NON-NLS-0$
