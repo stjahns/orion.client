@@ -179,6 +179,7 @@ define({
 	"viI": "Insert at Beginning of Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viO": "Insert Line Above", //$NON-NLS-1$ //$NON-NLS-0$
 	"vio": "Insert Line Below", //$NON-NLS-1$ //$NON-NLS-0$
+	"vir": "Replace Char Under Cursor", //$NON-NLS-1$ //$NON-NLS-0$
 	"viR": "Begin Overwriting Text", //$NON-NLS-1$ //$NON-NLS-0$
 	"vis": "Substitute a Character", //$NON-NLS-1$ //$NON-NLS-0$
 	"viS": "Substitute Entire Line", //$NON-NLS-1$ //$NON-NLS-0$

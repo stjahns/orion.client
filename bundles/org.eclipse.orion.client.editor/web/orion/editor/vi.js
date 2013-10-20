@@ -616,6 +616,48 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			return result;
 		},
 		storeNumber: function(n) {
+		},
+		_modeRemoved: function() {
+			this.getView().setOptions({overwriteMode: false});	
+		}
+	});
+	
+	// GetCharMode
+	function GetCharMode(viMode, textView) {	
+		this.viMode = viMode;
+		mKeyMode.KeyMode.call(this, textView);
+	}
+	
+	GetCharMode.prototype = new mKeyMode.KeyMode(); 
+	
+	mixin(GetCharMode.prototype, /** @lends orion.editor.GetCharMode.prototype */ {
+		match: function(e) {
+			var view = this.getView();
+			if (e.keyCode === 27) {
+				// Abort and return to normal mode
+				view.removeKeyMode(this);	
+				view.addKeyMode(this.viMode);
+			}
+			if (e.type === "keypress") { //$NON-NLS-0$
+				var key = util.isOpera ? e.which : (e.charCode !== undefined ? e.charCode : e.keyCode);
+				if (key > 31) {
+					if (typeof(this.callback) === "function") { //$NON-NLS-0$
+						// Pass character to callback
+						this.callback(String.fromCharCode(key));
+					}
+					// Return to normal mode
+					view.removeKeyMode(this);	
+					view.addKeyMode(this.viMode);
+					return "noop"; //$NON-NLS-0$
+				}
+			}
+			return undefined;
+		},
+		_modeAdded: function() {
+			this.getView().setOptions({blockCursorVisible: true});	
+		},
+		_modeRemoved: function() {
+			this.getView().setOptions({blockCursorVisible: false});
 		}
 	});
 
@@ -625,6 +667,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		this.changeMode = new EditMode(this, this.insertMode, "c", messages.vichange);  //$NON-NLS-0$
 		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
 		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
+		this.getCharMode = new GetCharMode(this, textView);
 		this.statusReporter = statusReporter;
 	}
 	VIMode.prototype = new NumberMode(); 
@@ -652,9 +695,12 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			bindings.push({actionID: "vi-o",	keyBinding: createStroke("o", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-O",	keyBinding: createStroke("O", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 	
-			bindings.push({actionID: "vi-R",	keyBinding: createStroke("R", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-s",	keyBinding: createStroke("s", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$	
 			bindings.push({actionID: "vi-S",	keyBinding: createStroke("S", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			
+			//Replace
+			bindings.push({actionID: "vi-r",	keyBinding: createStroke("r", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-R",	keyBinding: createStroke("R", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			
 			//Paste
 			bindings.push({actionID: "vi-p",	keyBinding: createStroke("p", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
@@ -766,8 +812,24 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				return true;
 			}, {name: messages.vio});
 			
+			view.setAction("vi-r", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				var num = self._getCount();
+				self.getCharMode.callback = function(char) {
+					// Replace character under cursor (or next 'num' chars) with char
+					var caretOffset = view.getCaretOffset();
+					var nextCharOffset = view.getNextOffset(caretOffset, {unit:"character", count: num}); //$NON-NLS-0$
+					var replaceString = new Array(num+1).join(char);
+					view.setText(replaceString, caretOffset, nextCharOffset);
+					view.setSelection(caretOffset, caretOffset);
+				};
+				view.addKeyMode(self.getCharMode);
+				self.number = "";
+				return true;
+			}, {name: messages.vir});
+			
 			view.setAction("vi-R", function() { //$NON-NLS-0$
-				return self._toInsertMode("toggleOverwriteMode"); //$NON-NLS-0$
+				return self._toInsertMode("noop", {replace: true}); //$NON-NLS-0$
 			}, {name: messages.viR});
 			
 			view.setAction("vi-s", function() { //$NON-NLS-0$
@@ -901,6 +963,11 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			view.invokeAction(action, false, data);
 			view.removeKeyMode(this);
 			view.addKeyMode(this.insertMode);
+			
+			if (data.replace) {
+				this.getView().setOptions({overwriteMode: true});	
+			}
+			
 			this.number = "";
 			return true;
 		},
