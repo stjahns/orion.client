@@ -93,7 +93,7 @@ define([
 				textView.addKeyMode(this.emacs);
 			} else if (prefs.keyBindings === "vi") { //$NON-NLS-0$
 				if (!this.vi) {
-					this.vi = new mVI.VIMode(textView, this.statusReporter.bind(this));
+					this.vi = new mVI.VIMode(textView, this.editor.getUndoStack(), this.statusReporter.bind(this));
 				}
 				textView.addKeyMode(this.vi);
 			}

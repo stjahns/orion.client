@@ -30,7 +30,8 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 	}
 	
 		
-	function NumberMode(textView, key, msg){
+	function NumberMode(textView, undoStack, key, msg){
+		this.undoStack = undoStack;
 		this.key = key;
 		this.msg = msg;
 		this.number = "";
@@ -381,6 +382,16 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				//TODO: this works if gotoLine is registered (not part of textview) - need to handle fail case
 			}, this._msg("viG")); //$NON-NLS-0$
 		},
+		startUndo: function() {
+			if (this.undoStack) {
+				this.undoStack.startCompoundChange();
+			}
+		},
+		endUndo: function() {
+			if (this.undoStack) {
+				this.undoStack.endCompoundChange();
+			}
+		},
 		_invoke: function(action, data) {
 			var view = this.getView();
 			data =  data || {};
@@ -501,10 +512,10 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 	
 	
 	//Edit Mode
-	function EditMode(viMode, nextMode, key, msg) {
+	function EditMode(viMode, nextMode, undoStack, key, msg) {
 		this.viMode = viMode;
 		this.nextMode = nextMode;
-		NumberMode.call(this, viMode.getView(), key, msg);
+		NumberMode.call(this, viMode.getView(), undoStack, key, msg);
 	}
 	
 	EditMode.prototype = new NumberMode(); 
@@ -661,12 +672,12 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		}
 	});
 
-	function VIMode(textView, statusReporter){
-		NumberMode.call(this, textView, "", messages.vimove); 
+	function VIMode(textView, undoStack, statusReporter){
+		NumberMode.call(this, textView, undoStack, "", messages.vimove); 
 		this.insertMode = new InsertMode(this);
-		this.changeMode = new EditMode(this, this.insertMode, "c", messages.vichange);  //$NON-NLS-0$
-		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
-		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
+		this.changeMode = new EditMode(this, this.insertMode, undoStack, "c", messages.vichange);  //$NON-NLS-0$
+		this.deleteMode = new EditMode(this, this, undoStack, "d", messages.videlete); //$NON-NLS-0$
+		this.yankMode = new EditMode(this, this, undoStack, "y",  messages.viyank); //$NON-NLS-0$
 		this.getCharMode = new GetCharMode(this, textView);
 		this.statusReporter = statusReporter;
 	}
@@ -817,12 +828,14 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				var num = self._getCount();
 				self.getCharMode.callback = function(char) {
 					// Replace character under cursor (or next 'num' chars) with char
+					self.startUndo();
 					var caretOffset = view.getCaretOffset();
 					var nextCharOffset = view.getNextOffset(caretOffset, {unit:"character", count: num}); //$NON-NLS-0$
 					var replaceString = new Array(num+1).join(char);
 					view.setText(replaceString, caretOffset, nextCharOffset);
-					view.setSelection(caretOffset, caretOffset);
-				};
+					view.setSelection(caretOffset + num - 1, caretOffset + num - 1);
+					self.endUndo();
+				};	
 				view.addKeyMode(self.getCharMode);
 				self.number = "";
 				return true;
