@@ -499,11 +499,165 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		}
 	});
 	
-	
-	//Edit Mode
-	function EditMode(viMode, nextMode, key, msg) {
+	// In TextRangeMode, user can specify a type of range with a key.
+	// (for example, '(' means eveything between the currently enclosing parentheses)
+	// Then the desired range offsets are found and passed to the given callback
+	// which performs some action with that range of text (like, deleting or yanking it)
+	function TextRangeMode(viMode, nextMode, callback, options) {
+		var view = nextMode.getView();
+		
+		this.key1 = options.key1;
+		this.key2 = options.key2;
+		this.callback = callback;
 		this.viMode = viMode;
 		this.nextMode = nextMode;
+		
+		mKeyMode.KeyMode.call(this, view);
+		this._createActions(view);
+	}
+	
+	TextRangeMode.prototype = new mKeyMode.KeyMode();
+	
+	var enclosers = {
+		'(' : {left: '(', right: ')'}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		'{' : {left: '{', right: '}'}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		'"' : {left: '"', right: '"'}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		'\'' : {left: '\'', right: '\''}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		'<' : {left: '<', right: '>'}, //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+		'[' : {left: '[', right: ']'} //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+	};
+	
+	mixin(TextRangeMode.prototype, /** @lends orion.editor.viMode.TextRangeMode.prototype */ {
+		
+		getEnclosedRange: function(symbol) {
+			var view = this.getView();
+			var model = view.getModel().getBaseModel();
+			var caretOffset = view.getCaretOffset();
+			var range;
+			
+			// search backwards from caret until we find left enclosing symbol
+			var startOffsetResults = model.find({
+				string: enclosers[symbol].left,
+				start: caretOffset,
+				reverse: true
+			});
+			
+			// search forwards from caret until we find right enclosing symbol
+			var endOffsetResults = model.find({
+				string: enclosers[symbol].right,
+				start: caretOffset,
+				reverse: false
+			});
+			
+			var startOffset = startOffsetResults.next();
+			var endOffset = endOffsetResults.next();
+			
+			if (startOffset && endOffset) {
+				if (this.key2 === "i") { //$NON-NLS-0$
+					range = {start: startOffset.end, end: endOffset.start};
+				} else {
+					range = {start: startOffset.start, end: endOffset.end};
+				}
+			}
+			
+			return range;
+		},
+
+		createKeyBindings: function() {
+			var bindings = [];
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-(", keyBinding: createStroke("(", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-(", keyBinding: createStroke(")", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-{", keyBinding: createStroke("{", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-{", keyBinding: createStroke("}", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-<", keyBinding: createStroke("<", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-<", keyBinding: createStroke(">", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-[", keyBinding: createStroke("[", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-[", keyBinding: createStroke("]", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-\"", keyBinding: createStroke("\"", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-'", keyBinding: createStroke("'", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-" + this.key1 + this.key2 + "-w", keyBinding: createStroke("w", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-3$ //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			return bindings;
+		},
+		
+		_createRangeAction: function(view, symbol) {
+			var self = this;
+			view.setAction("vi-"+self.key1+self.key2+"-"+symbol, function() { //$NON-NLS-1$ //$NON-NLS-0$
+			
+				// get the enclosed range offsets
+				var range = self.getEnclosedRange(symbol);
+				if (range) {
+					// trigger callback with offsets
+					self.callback(range);
+				}
+				
+				// go to next key mode
+				var view = self.getView();
+				view.removeKeyMode(self);
+				view.addKeyMode(self.nextMode);			
+				return true;
+			});
+		},
+		
+		_isWhitespace: function(text) {
+			return (text.trim().length === 0);
+		},
+		
+		_createActions: function(view) {
+			this._createRangeAction(view, '('); //$NON-NLS-0$
+			this._createRangeAction(view, '{'); //$NON-NLS-0$
+			this._createRangeAction(view, '<'); //$NON-NLS-0$
+			this._createRangeAction(view, '['); //$NON-NLS-0$
+			this._createRangeAction(view, '\''); //$NON-NLS-0$
+			this._createRangeAction(view, '"'); //$NON-NLS-0$
+			
+			var self = this;
+			view.setAction("vi-"+self.key1+self.key2+"-w", function() { //$NON-NLS-1$ //$NON-NLS-0$
+				var caret = view.getCaretOffset();
+				var wordStart = view.getNextOffset(caret + 1, {count: -1, unit: "word"}); //$NON-NLS-0$
+				var wordEnd = view.getNextOffset(wordStart, {count: 1, unit: "wordend"}); //$NON-NLS-0$
+				if (self.key2 === "a") { //$NON-NLS-0$
+					// 'aw' will go up to (but not including) the next non-whitespace character after the word
+					// UNLESS the next character following the word isn't whitespace, then it will do the same
+					// but up to the first non-whitespace character *before* the word
+					var nextChar = view.getText(wordEnd, view.getNextOffset(wordEnd, {count: 1, unit: "character"})); //$NON-NLS-0$
+					if (self._isWhitespace(nextChar)) {
+						while (self._isWhitespace(nextChar)) {
+							wordEnd = view.getNextOffset(wordEnd, {count: 1, unit: "character"}); //$NON-NLS-0$
+							nextChar = view.getText(wordEnd, view.getNextOffset(wordEnd, {count: 1, unit: "character"})); //$NON-NLS-0$
+						}
+					} else {
+						nextChar = view.getText(wordStart, view.getNextOffset(wordStart, {count: -1, unit: "character"})); //$NON-NLS-0$
+						while (self._isWhitespace(nextChar)) {
+							wordStart = view.getNextOffset(wordStart, {count: -1, unit: "character"}); //$NON-NLS-0$
+							nextChar = view.getText(wordStart, view.getNextOffset(wordStart, {count: -1, unit: "character"})); //$NON-NLS-0$
+						}
+					}
+				}
+				self.callback({start: wordStart, end: wordEnd});
+				view.removeKeyMode(self);
+				view.addKeyMode(self.nextMode);			
+				return true;
+			});
+		},
+		
+		match: function(e) {
+			var result = mKeyMode.KeyMode.prototype.match.call(this, e);
+			if (!result && (e.type === "keypress" || e.keyCode === 27)) { //$NON-NLS-0$
+				var view = this.getView();
+				view.removeKeyMode(this);
+				view.addKeyMode(this.viMode);			
+				result = "noop"; //$NON-NLS-0$
+			}
+			return result;
+		}
+	});
+	
+	//Edit Mode
+	function EditMode(viMode, nextMode, key, msg, rangeOperator) {
+		this.viMode = viMode;
+		this.nextMode = nextMode;
+		this.textRangeModeA = new TextRangeMode(viMode, nextMode, rangeOperator, {key1: key, key2: "a"}); //$NON-NLS-0$
+		this.textRangeModeI = new TextRangeMode(viMode, nextMode, rangeOperator, {key1: key, key2: "i"}); //$NON-NLS-0$
 		NumberMode.call(this, viMode.getView(), key, msg);
 	}
 	
@@ -513,6 +667,10 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			var bindings = NumberMode.prototype.createKeyBindings.call(this);
 			bindings.push({actionID: "vi-"+this.key+"ESC",		keyBinding: createStroke(27), predefined: true});//$NON-NLS-1$ //$NON-NLS-0$
 			bindings.push({actionID: "vi-"+this.key+"-"+this.key,	keyBinding: createStroke(this.key, false, false, false, false, "keypress")});//$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			
+			bindings.push({actionID: "vi-"+this.key+"-a",	keyBinding: createStroke("a", false, false, false, false, "keypress")}); //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			bindings.push({actionID: "vi-"+this.key+"-i",	keyBinding: createStroke("i", false, false, false, false, "keypress")}); //$NON-NLS-3$ //$NON-NLS-2$ //$NON-NLS-1$ //$NON-NLS-0$
+			
 			return bindings;
 		},
 		_invoke: function(action, data) {
@@ -571,6 +729,16 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			view.setAction("vi-"+self.key+"-"+self.key, function () { //$NON-NLS-1$ //$NON-NLS-0$ 
 				return self._invoke("lineEnd", {editLine:true}); //$NON-NLS-0$
 			}, this._msg("viycd")); //$NON-NLS-0$
+			view.setAction("vi-"+self.key+"-a", function () { //$NON-NLS-1$ //$NON-NLS-0$ 
+				view.removeKeyMode(self);
+				view.addKeyMode(self.textRangeModeA);
+				return true;
+			});
+			view.setAction("vi-"+self.key+"-i", function () { //$NON-NLS-1$ //$NON-NLS-0$ 
+				view.removeKeyMode(self);
+				view.addKeyMode(self.textRangeModeI);
+				return true;
+			});
 		},
 		storeNumber: function(number) {
 			this.firstNumber = number;
@@ -622,9 +790,21 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 	function VIMode(textView, statusReporter){
 		NumberMode.call(this, textView, "", messages.vimove); 
 		this.insertMode = new InsertMode(this);
-		this.changeMode = new EditMode(this, this.insertMode, "c", messages.vichange);  //$NON-NLS-0$
-		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
-		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
+		this.changeMode = new EditMode(this, this.insertMode, "c", messages.vichange, //$NON-NLS-0$
+			function (range) {
+				yankText = textView.getText(range.start, range.end);
+				textView.setText("", range.start, range.end);
+		});
+		this.deleteMode = new EditMode(this, this, "d",  messages.videlete, //$NON-NLS-0$
+			function (range) {
+				yankText = textView.getText(range.start, range.end);
+				textView.setText("", range.start, range.end);
+		});
+		
+		this.yankMode = new EditMode(this, this, "y",  messages.viyank, //$NON-NLS-0$
+			function (range) {
+				yankText = textView.getText(range.start, range.end);
+		});
 		this.statusReporter = statusReporter;
 	}
 	VIMode.prototype = new NumberMode(); 
