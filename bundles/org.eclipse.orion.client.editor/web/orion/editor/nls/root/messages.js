@@ -186,6 +186,7 @@ define({
 	"vip": "Paste After Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viP": "Paste Before Char or Line", //$NON-NLS-1$ //$NON-NLS-0$
 	"viStar": "Search Word Under Cursor", //$NON-NLS-1$ //$NON-NLS-0$
+	"viDot": "Repeat Last Edit", //$NON-NLS-1$ //$NON-NLS-0$
 
 
 	"replaceAll": "Replacing all...", //$NON-NLS-1$ //$NON-NLS-0$

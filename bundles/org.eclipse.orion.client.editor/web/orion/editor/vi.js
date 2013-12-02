@@ -9,6 +9,8 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 	
 	var yankText, yankEditLine;
 	
+	var previousEdit = {};
+	
 	function mixin(object, proto) {
 		for (var p in proto) {
 			if (proto.hasOwnProperty(p)) {
@@ -381,10 +383,31 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				//TODO: this works if gotoLine is registered (not part of textview) - need to handle fail case
 			}, this._msg("viG")); //$NON-NLS-0$
 		},
-		_invoke: function(action, data) {
+		_invokeEdit: function(action, data) {
+			// (for invoking actions that can be repeated with '.')
 			var view = this.getView();
 			data =  data || {};
 			data.count = this._getCount();
+				
+			if (typeof action === "function") { //$NON-NLS-0$
+				action(data);
+				previousEdit.execute = action;
+			} else {
+				view.invokeAction(action, false, data);
+				previousEdit.execute = function() {
+					view.invokeAction(action, false, data);
+				};
+			}
+			return true;
+		},
+		_invoke: function(action, data) {
+			var view = this.getView();
+			data =  data || {};
+			
+			if (!data.count) {
+				data.count = this._getCount();
+			}
+			
 			if (typeof action === "function") { //$NON-NLS-0$
 				action(data);
 			} else {
@@ -420,10 +443,10 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			};
 			return this._invoke("find", this._charTempOptions); //$NON-NLS-0$
 		},
-		_findNextChar: function (forward) {
+		_findNextChar: function (forward, options) {
 			if (this._charTempOptions) {
 				var view = this.getView();
-				var tempTempOptions = {};
+				var tempTempOptions = options || {};
 				tempTempOptions.hideAfterFind = this._charTempOptions.hideAfterFind;
 				tempTempOptions.incremental = this._charTempOptions.incremental;
 				tempTempOptions.reverse = this._charTempOptions.reverse;
@@ -522,7 +545,15 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			var startOffset = caretOffset;
 			var model = view.getModel();
 			var self = this;
-			data.editDone = function() {
+			
+			// If this is invoked via a repeat (hitting '.'), defer to NumberMode's 
+			// implementation so it doesn't mess up 'previousEdit'
+			if (data.suppressEditModeInvoke)
+			{
+					return NumberMode.prototype._invoke.call(this, action, data);
+			}
+			
+			var getOffsets = function(startOffset) {
 				var endOffset = view.getCaretOffset();
 				if (startOffset > endOffset) {
 					var tmp = startOffset;
@@ -533,18 +564,98 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					startOffset = model.getLineStart(model.getLineAtOffset(startOffset));
 					endOffset = model.getLineEnd(model.getLineAtOffset(endOffset), self.key === "c" ? false : true); //$NON-NLS-0$
 				}
-				if (self.key === "y") { //$NON-NLS-0$
-					yankText = view.getText(startOffset, endOffset); 
+				return {start: startOffset, end: endOffset};
+			};
+			
+			// For "c" and "d"
+			var doDelete = function(view, args) {
+				var startOffset = view.getCaretOffset();
+				
+				data.count = previousEdit.actionCount;
+				
+				data.editDone = function() {
+					var offsets = getOffsets(startOffset);
+					view.setText("", offsets.start, offsets.end); 
+					if (args && args.firstTime && args.change && action === "find")	{ //$NON-NLS-0$
+						// Wait till find is done before switching to the next mode
+						view.removeKeyMode(self);	
+						view.addKeyMode(self.nextMode);
+					}
+				};
+						
+				if ((args && args.firstTime ) || action !== "find") { //$NON-NLS-0$
+					// If first execution, or action is not a find...
+					NumberMode.prototype._invoke.call(self, action, data);
+					var offsets = getOffsets(startOffset);
+					
+					if (action !== "find" && action !== "findNext" && action !== "findPrevious") { //$NON-NLS-0$ //$NON-NLS-1$ //$NON-NLS-2$
+						// if not a find action, remove the text 
+						// (otherwise the deletion will be done in the editDone callback for find actions)
+						view.setText("", offsets.start, offsets.end); 
+					}
+				
+				} else {
+					// Need to repeat the last find action!
+					if (data.start && data.end) {
+						// last find was a tT/fF
+						self._findNextChar(!self._charTempOptions.reverse, {editDone: data.editDone, suppressEditModeInvoke: true});
+					}
+					else {
+						// last find was a / or ?
+						var findAction, start = view.getCaretOffset();
+						if (self._searchFwd) {
+							findAction = "findNext"; //$NON-NLS-0$
+							start++;
+						} else {
+							findAction = "findPrevious"; //$NON-NLS-0$
+						}
+						var findData = {start: start, suppressEditModeInvoke: true, findCallback: function(range) { 
+							if (range) {
+								view.setCaretOffset(range.start);
+							}
+							if (data.editDone) {
+								data.editDone();
+							}
+						}};
+						self._invoke(findAction, findData); 						
+					}
+				}
+
+				if (args && args.firstTime && args.change && action !== "find")	{ //$NON-NLS-0$
+					// On first execute,
+					// for actions that dont involve "find", go to next mode right away
+					view.removeKeyMode(self);	
+					view.addKeyMode(self.nextMode);
+				}
+			};
+			
+			// Need to be able to redo 'd' and 'c' actions with '.'
+			if (self.key === "d") { //$NON-NLS-0$
+				previousEdit.execute = doDelete;
+				previousEdit.actionCount = this._getCount();
+				doDelete(view, {firstTime: true});
+			} else if (self.key === "c") { //$NON-NLS-0$
+				previousEdit.preInsertAction = doDelete;
+				previousEdit.actionCount = this._getCount();
+				previousEdit.change = true;
+				doDelete(view, {firstTime: true, change: true});
+			} else if (self.key === "y") { //$NON-NLS-0$
+				data.editDone = function() {
+					// yank
+					var offsets = getOffsets(startOffset);
+					yankText = view.getText(offsets.start, offsets.end); 
 					yankEditLine = data.editLine;
 					view.setCaretOffset(caretOffset);
-				} else {
-					view.setText("", startOffset, endOffset); 
-				}
+				};
+				NumberMode.prototype._invoke.call(this, action, data);
+				data.editDone();
+			}
+			
+			if (self.key !== "c") { //$NON-NLS-0$
 				view.removeKeyMode(self);	
 				view.addKeyMode(self.nextMode);
-			};
-			NumberMode.prototype._invoke.call(this, action, data);
-			data.editDone();			
+			}
+			
 			return true;
 		},
 		_getCount: function() {
@@ -616,6 +727,109 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			return result;
 		},
 		storeNumber: function(n) {
+			this._count = n;
+			if (n < 1) {
+				this._count = 1;
+			}
+		},
+		_modeAdded: function() {
+			var view = this.getView();
+			var model = view.getModel();
+			var self = this;
+			
+			// start a new edit action for inserting text at caret
+			self._currentEdit = previousEdit;
+			self._currentEdit.offset = 0;
+			self._currentEdit.text = "";
+			self._currentEdit.count = 1;
+			self._currentEdit.execute = function(view) {
+				
+				// if there was a pre insert action, execute it
+				var action = previousEdit.preInsertAction;
+				if (action) {
+					if (typeof action === "function") { //$NON-NLS-0$
+						action(view);
+					} else {
+						view.invokeAction(action.action, false, action.data);
+					}
+				}
+				
+				// insert the final text COUNT times
+				for (i = 0; i < previousEdit.count; ++i) {
+					var caretOffset = view.getCaretOffset();
+					view.setText(previousEdit.text, caretOffset + previousEdit.offset, caretOffset);
+				}
+			};
+
+			self._listener = {
+				onSelection: function(e) {
+					self.onSelection(e);
+				},
+				onChanged: function(e) {
+					self.onChanged(e);
+				},
+				onChanging: function(e) {
+					self.onChanging(e);
+				}
+			};
+			
+			// Must listen to text additinos/removals and selection changes
+			view.addEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+			model.addEventListener("preChanging", this._listener.onChanging); //$NON-NLS-0$
+			view.addEventListener("postModify", this._listener.onChanged); //$NON-NLS-0$
+		},
+		_modeRemoved: function() {
+			var i, count = this._count;
+			var view = this.getView();
+			var model = view.getModel();
+			if (this._listener)
+			{
+				view.removeEventListener("Selection", this._listener.onSelection); //$NON-NLS-0$
+				model.removeEventListener("preChanging", this._listener.onChanging); //$NON-NLS-0$
+				view.removeEventListener("postModify", this._listener.onChanged); //$NON-NLS-0$
+			}
+			if (this._currentEdit && !this._currentEdit.change) {
+				// insert the final text COUNT - 1 more times
+				for (i = 1; i < count; ++i) {
+					var caretOffset = view.getCaretOffset();
+					view.setText(this._currentEdit.text, caretOffset + this._currentEdit.offset, caretOffset);
+				}
+				// On repeat with '.', need to repeat COUNT times
+				this._currentEdit.count = count;
+				this._currentEdit = undefined;
+			}
+		},
+		onSelection : function(e) {
+			if (!this._changing) {
+				// selection is changing without text being modified!
+				// reset text, offset, and preInsertAction
+				this._currentEdit.text = "";
+				this._currentEdit.preInsertAction = undefined;
+				this._currentEdit.offset = 0;
+			}
+		},
+		onChanging: function(e) {
+			this._changing = true;
+			
+			if (e.addedCharCount > 0) {
+				// Add characters to end of text
+				this._currentEdit.text = this._currentEdit.text + e.text;
+			}
+			if (e.removedCharCount > 0) {
+				// Remove characters from end of text
+				var length = this._currentEdit.text.length;
+				length = length - e.removedCharCount;
+				if (length < 0)
+				{
+					// If no characters left in text, add to offset
+					// (This handles deleting text with backspace when in insert mode)
+					this._currentEdit.offset += length;
+				}
+				this._currentEdit.text = this._currentEdit.text.substr(0, this._currentEdit.text.length - e.removedCharCount);
+			}
+		},
+		onChanged: function(e) {
+			this._changing = false;
 		}
 	});
 
@@ -675,6 +889,8 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			bindings.push({actionID: "vi-C",	keyBinding: createStroke("C", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-D",	keyBinding: createStroke("D", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-*",  keyBinding: createStroke("*", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			
+			bindings.push({actionID: "vi-.",  keyBinding: createStroke(".", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			
 			return bindings;
 		},
@@ -741,49 +957,53 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			
 			//Insert
 			view.setAction("vi-a", function() { //$NON-NLS-0$
-				return self._toInsertMode("charNext"); //$NON-NLS-0$
+				return self._toInsertMode(false, "charNext"); //$NON-NLS-0$
 			}, {name: messages.via});
 			
 			view.setAction("vi-A", function() { //$NON-NLS-0$
-				return self._toInsertMode("lineEnd"); //$NON-NLS-0$
+				return self._toInsertMode(false, "lineEnd"); //$NON-NLS-0$
 			}, {name: messages.viA});
 			
 			view.setAction("vi-i", function() { //$NON-NLS-0$
-				return self._toInsertMode("noop"); //$NON-NLS-0$
+				return self._toInsertMode(false, "noop"); //$NON-NLS-0$
 			}, {name: messages.vii});
 			
 			view.setAction("vi-I", function() { //$NON-NLS-0$
-				return self._toInsertMode("lineStart"); //$NON-NLS-0$
+				return self._toInsertMode(false, "lineStart"); //$NON-NLS-0$
 			}, {name: messages.viI});
 			
 			view.setAction("vi-O", function() { //$NON-NLS-0$
-				self._invoke("lineUp"); //$NON-NLS-0$
-				self._invoke("lineEnd"); //$NON-NLS-0$
-				self._toInsertMode("enter"); //$NON-NLS-0$
+				self._toInsertMode(false, function() {
+					self._invoke("lineUp"); //$NON-NLS-0$
+					self._invoke("lineEnd"); //$NON-NLS-0$
+					self._invoke("enter"); //$NON-NLS-0$
+				});
 				return true;
 			}, {name: messages.viO});
 			
 			view.setAction("vi-o", function() { //$NON-NLS-0$
-				self._invoke("lineEnd"); //$NON-NLS-0$
-				self._toInsertMode("enter"); //$NON-NLS-0$
+				self._toInsertMode(false, function() {
+					self._invoke("lineEnd"); //$NON-NLS-0$
+					self._invoke("enter"); //$NON-NLS-0$
+				});
 				return true;
 			}, {name: messages.vio});
 			
 			view.setAction("vi-R", function() { //$NON-NLS-0$
-				return self._toInsertMode("toggleOverwriteMode"); //$NON-NLS-0$
+				return self._toInsertMode(false, "toggleOverwriteMode"); //$NON-NLS-0$
 			}, {name: messages.viR});
 			
 			view.setAction("vi-s", function() { //$NON-NLS-0$
-				return self._toInsertMode("deleteNext", {unit: "char"}); //$NON-NLS-1$ //$NON-NLS-0$
+				return self._toInsertMode(true, "deleteNext", {unit: "char"}); //$NON-NLS-1$ //$NON-NLS-0$
 			}, {name: messages.vis});
 
 			view.setAction("vi-S", function() { //$NON-NLS-0$
-				return self._toInsertMode("deleteLines", {unit: "line"}); //$NON-NLS-1$ //$NON-NLS-0$
+				return self._toInsertMode(true, "deleteLines", {unit: "line"}); //$NON-NLS-1$ //$NON-NLS-0$
 			}, {name: messages.viS});
 			
 			//Paste
 			view.setAction("vi-p", function() { //$NON-NLS-0$
-				return self._invoke(function() {
+				return self._invokeEdit(function() {
 					var view = self.getView();
 					var selection = view.getSelection();
 					if (selection.start === selection.end) {
@@ -801,7 +1021,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			}, {name: messages.vip});
 
 			view.setAction("vi-P", function() { //$NON-NLS-0$
-				return self._invoke(function() {
+				return self._invokeEdit(function() {
 					var view = self.getView();
 					var selection = view.getSelection();
 					if (selection.start === selection.end) {
@@ -846,23 +1066,23 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			});
 			
 			view.setAction("vi-~", function() { //$NON-NLS-0$
-				return self._invoke("reversecase"); //$NON-NLS-0$
+				return self._invokeEdit("reversecase"); //$NON-NLS-0$
 			}, {name: messages.reversecase});
 			
 			view.setAction("vi-x", function() { //$NON-NLS-0$
-				return self._invoke("deleteNext"); //$NON-NLS-0$
+				return self._invokeEdit("deleteNext"); //$NON-NLS-0$
 			}, {name: messages.deleteNext});
 			
 			view.setAction("vi-X", function() { //$NON-NLS-0$
-				return self._invoke("deletePrevious"); //$NON-NLS-0$
+				return self._invokeEdit("deletePrevious"); //$NON-NLS-0$
 			}, {name: messages.deletePrevious});
 			
 			view.setAction("vi-C", function() { //$NON-NLS-0$
-				return self._toInsertMode("deleteLineEnd"); //$NON-NLS-0$
+				return self._toInsertMode(true, "deleteLineEnd"); //$NON-NLS-0$
 			}, {name: messages.viC});
 			
 			view.setAction("vi-D", function() { //$NON-NLS-0$
-				return self._invoke("deleteLineEnd"); //$NON-NLS-0$
+				return self._invokeEdit("deleteLineEnd"); //$NON-NLS-0$
 			}, {name: messages.deleteLineEnd});
 			
 			view.setAction("vi-*", function() { //$NON-NLS-0$
@@ -883,6 +1103,18 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				return self._invoke("find", data); //$NON-NLS-0$
 			}, {name: messages.viStar});
 				
+			view.setAction("vi-.", function() { //$NON-NLS-0$
+				// repeat last edit action
+				if (previousEdit && typeof previousEdit.execute === "function") { //$NON-NLS-0$
+					var count = self._getCount();
+					for (var i = 0; i < count; ++i)
+					{
+						previousEdit.execute(view);
+					}
+				}
+				return true;
+			}, {name: messages.viDot});
+			
 //			Status Line Mode
 //			view.setAction("statusLineMode", function() { //$NON-NLS-0$
 //				self.insertMode.storeNumber(self.number);
@@ -897,16 +1129,27 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				this.statusReporter(msg);
 			}
 		}, 
-		_toInsertMode: function(action, data) {
+		// toInsertMode
+		// Switches to insert mode after invoking the given action
+		// 'change' argument affects what the given prefix number does, eg:
+		// 	3cwx should replace the next 3 words with 'x', so pass 'change' as true
+		// 	3Ax should append 'xxx' to the end of the current line, so pass 'change' as false
+		_toInsertMode: function(change, action, data) {
 			data =  data || {};
-			var num = 1;
-			if (this.number !== "") {
-				num = this.number >> 0;
-			}
-			data.count = num;
 			var view = this.getView();
 			this.insertMode.storeNumber(this.number);
-			view.invokeAction(action, false, data);
+			
+			previousEdit.preInsertAction = {action: action, data: data};
+			previousEdit.change = change;
+			
+			if (typeof action === "function") { //$NON-NLS-0$
+				action();
+				previousEdit.preInsertAction = action;
+			} else {
+				view.invokeAction(action, false, data);
+				previousEdit.preInsertAction = {action: action, data: data};
+			}
+			
 			view.removeKeyMode(this);
 			view.addKeyMode(this.insertMode);
 			this.number = "";
