@@ -127,6 +127,10 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			textView.setAction("tab", function() { //$NON-NLS-0$
 				return this.indentLines();
 			}.bind(this));
+			
+			textView.setAction("indentLines", function() { //$NON-NLS-0$
+				return this.indentLines(true);
+			}.bind(this));
 
 			textView.setAction("shiftTab", function() { //$NON-NLS-0$
 				return this.unindentLines();
@@ -317,7 +321,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			textView.setRedraw(true);
 			return true;
 		},
-		indentLines: function() {
+		indentLines: function(forceIndent) {
 			var editor = this.editor;
 			var textView = editor.getTextView();
 			if (textView.getOptions("readonly")) { return false; } //$NON-NLS-0$
@@ -326,7 +330,7 @@ define("orion/editor/actions", [ //$NON-NLS-0$
 			var selection = editor.getSelection();
 			var firstLine = model.getLineAtOffset(selection.start);
 			var lastLine = model.getLineAtOffset(selection.end > selection.start ? selection.end - 1 : selection.end);
-			if (firstLine !== lastLine) {
+			if (firstLine !== lastLine || forceIndent) {
 				var lines = [];
 				lines.push("");
 				for (var i = firstLine; i <= lastLine; i++) {

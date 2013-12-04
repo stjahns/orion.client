@@ -29,7 +29,79 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		return result;
 	}
 	
+	function PrefixMode(textView, nextMode, key, actions) {
+		this.nextMode = nextMode;
+		this.key = key;
+		this.actions = actions;
+		this.textView = textView;
+
+		mKeyMode.KeyMode.call(this, textView);
 		
+		if (textView) {
+			this._createActions(textView);
+		}
+	}
+
+	PrefixMode.prototype = new mKeyMode.KeyMode(); 
+	mixin(PrefixMode.prototype, /** @lends orion.editor.viMode.PrefixMode.prototype */ {
+		
+		createKeyBindings: function() {
+
+			var bindings = [];
+			var prefixKey = this.key;
+			var actions = this.actions;
+
+			// For each action, create a binding
+			for (var i = 0; i < actions.length; i++) {
+				var action = actions[i];
+				bindings.push({
+					actionID: "vi" + prefixKey + action.key, //$NON-NLS-0$
+					keyBinding: createStroke(action.key, false, false, false, false, "keypress") //$NON-NLS-0$
+				});
+			}
+
+			return bindings;
+		},
+
+		match: function(e) {
+			var result = mKeyMode.KeyMode.prototype.match.call(this, e);
+			if (!result && e.type === "keypress") { //$NON-NLS-0$
+				result = "noop"; //$NON-NLS-0$
+
+				var textView = this.textView;
+				textView.removeKeyMode(this);
+				textView.addKeyMode(this.nextMode);
+			}
+			return result;
+		},
+		
+		_createActions: function(view) {
+
+			var actions = this.actions;
+			var prefixKey = this.key;
+			var self = this;
+
+			for (var i = 0; i < actions.length; i++) {
+				var action = actions[i];
+
+				view.setAction("vi" + prefixKey + action.key, (function(action) { //$NON-NLS-1$ //$NON-NLS-0$
+					return function() {
+						action.invoke();
+						view.removeKeyMode(self);
+						view.addKeyMode(self.nextMode);
+						return true;
+					};
+				})(action), {name: messages[action.msg]});
+				
+			}
+		},
+
+		_modeAdded: function() {
+			this.getView().setOptions({blockCursorVisible: true});	
+		}
+
+	});
+
 	function NumberMode(textView, key, msg){
 		this.key = key;
 		this.msg = msg;
@@ -598,6 +670,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		createKeyBindings: function() {
 			var bindings = [];
 			bindings.push({actionID: "vi-insert-ESC",		keyBinding: createStroke(27), predefined: true}); //$NON-NLS-0$
+			bindings.push({actionID: "vi-insert-ctrl-d",	keyBinding: createStroke("d", true)}); //$NON-NLS-1$ //$NON-NLS-0$
 			return bindings;
 		},
 		_createActions: function(view) {
@@ -605,6 +678,11 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			view.setAction("vi-insert-ESC", function() { //$NON-NLS-0$
 				view.removeKeyMode(self);
 				view.addKeyMode(self.viMode);
+				return true;
+			});
+			view.setAction("vi-insert-ctrl-d", function() { //$NON-NLS-0$
+				// deindent current line
+				view.invokeAction("shiftTab", false); //$NON-NLS-0$
 				return true;
 			});
 		},
@@ -625,6 +703,64 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		this.changeMode = new EditMode(this, this.insertMode, "c", messages.vichange);  //$NON-NLS-0$
 		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
 		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
+
+		this.zedMode = new PrefixMode(textView, this, "z", [{ //$NON-NLS-0$
+					key: "z", //$NON-NLS-0$
+					msg: "vizz", //$NON-NLS-0$
+					invoke: function () {
+						// Scroll to center caret in screen
+						textView.invokeAction("centerLine", false); //$NON-NLS-0$
+					}
+		}, {
+					key: "t", //$NON-NLS-0$
+					msg: "vizt", //$NON-NLS-0$
+					invoke: function () {
+						// Scroll to move caret to top of screen
+						textView.invokeAction("lineToTop", false); //$NON-NLS-0$
+					}
+		}, {
+					key: "b", //$NON-NLS-0$
+					msg: "vizb", //$NON-NLS-0$
+					invoke: function () {
+						// Scroll to move caret to bottom of screen
+						textView.invokeAction("lineToBottom", false); //$NON-NLS-0$
+					}
+		}]);
+
+
+		this.gMode = new PrefixMode(textView, this, "g", [{ //$NON-NLS-0$
+					key: "g", //$NON-NLS-0$
+					msg: "vigg", //$NON-NLS-0$
+					invoke: function () {
+						var data = data || {};
+						data.line=0;
+						data.editLine=true;
+						data.callback = function() {
+							if (data.editDone) { // what does editDone do??
+								data.editDone();
+							}
+						};
+						textView.invokeAction("gotoLine", false, data); //$NON-NLS-0$
+						//TODO: this works if gotoLine is registered (not part of textview) - need to handle fail case
+					}
+		}]);
+		
+		this.indentMode = new PrefixMode(textView, this, ">", [{ //$NON-NLS-0$ // TODO
+					key: ">", //$NON-NLS-0$
+					msg: "vi>>", //$NON-NLS-0$
+					invoke: function () {
+						textView.invokeAction("indentLines", false); //$NON-NLS-0$
+					}
+		}]);
+		
+		this.deindentMode = new PrefixMode(textView, this, "<", [{ //$NON-NLS-0$ // TODO
+					key: "<", //$NON-NLS-0$:
+					msg: "vi<<", //$NON-NLS-0$
+					invoke: function () {
+						textView.invokeAction("shiftTab", false); //$NON-NLS-0$
+					}
+		}]);
+
 		this.statusReporter = statusReporter;
 	}
 	VIMode.prototype = new NumberMode(); 
@@ -669,6 +805,11 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			bindings.push({actionID: "vi-y",	keyBinding: createStroke("y", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-~",	keyBinding: createStroke("~", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 
+			bindings.push({actionID: "vi-z",	keyBinding: createStroke("z", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-g",	keyBinding: createStroke("g", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi->",	keyBinding: createStroke(">", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			bindings.push({actionID: "vi-<",	keyBinding: createStroke("<", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
+			
 			bindings.push({actionID: "vi-x",	keyBinding: createStroke("x", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			bindings.push({actionID: "vi-X",	keyBinding: createStroke("X", false, false, false, false, "keypress"), predefined: true});  //$NON-NLS-2$  //$NON-NLS-1$  //$NON-NLS-0$
 			
@@ -681,31 +822,26 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		getKeyBindings: function (actionID) {
 			var result = mKeyMode.KeyMode.prototype.getKeyBindings.call(this, actionID);
 			result = result || [];
-			var keyBindings = this.changeMode.getKeyBindings(actionID);
-			var i;
-			if (!this.changeMode.isActive()) {
-				for (i=0; i<keyBindings.length; i++) {
-					keyBindings[i] = createSequence([createStroke("c", false, false, false, false, "keypress"), keyBindings[i]]); //$NON-NLS-1$  //$NON-NLS-0$
-					
+			var sequenceModes = [
+				this.changeMode,
+				this.deleteMode,
+				this.yankMode,
+				this.zedMode,
+				this.gMode,
+				this.indentMode,
+				this.deindentMode
+			];
+			var i, modeIdx;
+			for (modeIdx = 0; modeIdx < sequenceModes.length; modeIdx++) {
+				var mode = sequenceModes[modeIdx];
+				var keyBindings = mode.getKeyBindings(actionID);
+				if (!mode.isActive()) {
+					for (i = 0; i < keyBindings.length; i++) {
+						keyBindings[i] = createSequence([createStroke(mode.key, false, false, false, false, "keypress"), keyBindings[i]]); //$NON-NLS-1$  //$NON-NLS-0$
+					}
 				}
+				result = result.concat(keyBindings);
 			}
-			result = result.concat(keyBindings);
-			keyBindings = this.deleteMode.getKeyBindings(actionID);
-			if (!this.deleteMode.isActive()) {
-				for (i=0; i<keyBindings.length; i++) {
-					keyBindings[i] = createSequence([createStroke("d", false, false, false, false, "keypress"), keyBindings[i]]); //$NON-NLS-1$  //$NON-NLS-0$
-					
-				}
-			}
-			result = result.concat(keyBindings);
-			keyBindings = this.yankMode.getKeyBindings(actionID);
-			if (!this.yankMode.isActive()) {
-				for (i=0; i<keyBindings.length; i++) {
-					keyBindings[i] = createSequence([createStroke("y", false, false, false, false, "keypress"), keyBindings[i]]); //$NON-NLS-1$  //$NON-NLS-0$
-					
-				}
-			}
-			result = result.concat(keyBindings);
 			return result;
 		},
 //		isStatusActive: function() {
@@ -841,6 +977,34 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 				view.removeKeyMode(self);
 				view.addKeyMode(self.yankMode);
 				self.yankMode.storeNumber(self.number);
+				self.number = "";
+				return true;
+			});
+
+			view.setAction("vi-z", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.zedMode);
+				self.number = "";
+				return true;
+			});
+			
+			view.setAction("vi-g", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.gMode);
+				self.number = "";
+				return true;
+			});
+						
+			view.setAction("vi->", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.indentMode);
+				self.number = "";
+				return true;
+			});
+			
+			view.setAction("vi-<", function() { //$NON-NLS-0$
+				view.removeKeyMode(self);
+				view.addKeyMode(self.deindentMode);
 				self.number = "";
 				return true;
 			});

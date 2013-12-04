@@ -4364,6 +4364,16 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 					var selectionHeight = (lineEnd - lineStart + 1) * lineHeight;
 					pixel = (lineStart * lineHeight) - (clientHeight / 2) + (selectionHeight / 2);
 					break;
+				case "lineToTop": //$NON-NLS-0$
+					selection = this._getSelection();
+					lineStart = model.getLineAtOffset(selection.start);
+					pixel = (lineStart * lineHeight);
+					break;
+				case "lineToBottom": //$NON-NLS-0$
+					selection = this._getSelection();
+					lineStart = model.getLineAtOffset(selection.start);
+					pixel = (lineStart * lineHeight) - clientHeight + lineHeight;
+					break;
 			}
 			if (pixel !== undefined) {
 				pixel = Math.min(Math.max(0, pixel), verticalMaximum - clientHeight);
@@ -4678,6 +4688,8 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				"scrollTextStart": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "textStart"}));}, actionDescription: {name: messages.scrollTextStart}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"scrollTextEnd": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "textEnd"}));}, actionDescription: {name: messages.scrollTextEnd}}, //$NON-NLS-1$ //$NON-NLS-0$
 				"centerLine": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "centerLine"}));}, actionDescription: {name: messages.centerLine}}, //$NON-NLS-1$ //$NON-NLS-0$
+				"lineToTop": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "lineToTop"}));}, actionDescription: {name: messages.centerLine}}, //$NON-NLS-1$ //$NON-NLS-0$ // FIXME
+				"lineToBottom": {defaultHandler: function(data) {return self._doScroll(merge(data,{type: "lineToBottom"}));}, actionDescription: {name: messages.centerLine}}, //$NON-NLS-1$ //$NON-NLS-0$ // FIXME
 				
 				"selectLineUp": {defaultHandler: function(data) {return self._doLineUp(merge(data,{select: true}));}, actionDescription: {name: messages.selectLineUp}}, //$NON-NLS-0$
 				"selectLineDown": {defaultHandler: function(data) {return self._doLineDown(merge(data,{select: true}));}, actionDescription: {name: messages.selectLineDown}}, //$NON-NLS-0$
@@ -6061,6 +6073,7 @@ define("orion/editor/textView", [ //$NON-NLS-0$
 				}
 			}
 		},
+
 		_setSelectionTo: function (x, y, extent, drag) {
 			var model = this._model, offset;
 			var selection = this._getSelection();
