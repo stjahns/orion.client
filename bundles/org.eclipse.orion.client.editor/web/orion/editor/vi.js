@@ -29,7 +29,11 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		return result;
 	}
 	
-	function PrefixMode(textView, nextMode, key, actions) {
+	// PrefixMode can be used for any bindings that require sequences of 2 keypresses
+	// 1st keypress (the prefix) is bound in normal mode, whose action is to enter the prefix mode.
+	// 2nd keypresses are listed in the actions argument along with their actual actions to perform.
+	function PrefixMode(textView, normalMode, nextMode, key, actions) {
+		this.normalMode = normalMode;
 		this.nextMode = nextMode;
 		this.key = key;
 		this.actions = actions;
@@ -59,6 +63,9 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					keyBinding: createStroke(action.key, false, false, false, false, "keypress") //$NON-NLS-0$
 				});
 			}
+			
+			// Can abort back to normal mode with ESC
+			bindings.push({actionID: "vi"+this.key+"ESC",		keyBinding: createStroke(27), predefined: true});//$NON-NLS-1$ //$NON-NLS-0$
 
 			return bindings;
 		},
@@ -81,19 +88,27 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 			var prefixKey = this.key;
 			var self = this;
 
+			function createCallback(action) {
+				return function() {
+					action.invoke();
+					view.removeKeyMode(self);
+					view.addKeyMode(self.normalMode);
+					return true;
+				};
+			}
+			
 			for (var i = 0; i < actions.length; i++) {
 				var action = actions[i];
-
-				view.setAction("vi" + prefixKey + action.key, (function(action) { //$NON-NLS-1$ //$NON-NLS-0$
-					return function() {
-						action.invoke();
-						view.removeKeyMode(self);
-						view.addKeyMode(self.nextMode);
-						return true;
-					};
-				})(action), {name: messages[action.msg]});
-				
+				view.setAction("vi" + prefixKey + action.key, //$NON-NLS-0$
+					createCallback(action), 
+					{name: messages[action.msg]});
 			}
+			
+			view.setAction("vi" + this.key + "ESC", function() {
+				view.removeKeyMode(self);
+				view.addKeyMode(self.normalMode);
+				return true;
+			});
 		},
 
 		_modeAdded: function() {
@@ -704,7 +719,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		this.deleteMode = new EditMode(this, this, "d",  messages.videlete); //$NON-NLS-0$
 		this.yankMode = new EditMode(this, this, "y",  messages.viyank); //$NON-NLS-0$
 
-		this.zedMode = new PrefixMode(textView, this, "z", [{ //$NON-NLS-0$
+		this.zedMode = new PrefixMode(textView, this, this, "z", [{ //$NON-NLS-0$
 					key: "z", //$NON-NLS-0$
 					msg: "vizz", //$NON-NLS-0$
 					invoke: function () {
@@ -728,7 +743,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 		}]);
 
 
-		this.gMode = new PrefixMode(textView, this, "g", [{ //$NON-NLS-0$
+		this.gMode = new PrefixMode(textView, this, this, "g", [{ //$NON-NLS-0$
 					key: "g", //$NON-NLS-0$
 					msg: "vigg", //$NON-NLS-0$
 					invoke: function () {
@@ -745,7 +760,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					}
 		}]);
 		
-		this.indentMode = new PrefixMode(textView, this, ">", [{ //$NON-NLS-0$ // TODO
+		this.indentMode = new PrefixMode(textView, this, this, ">", [{ //$NON-NLS-0$
 					key: ">", //$NON-NLS-0$
 					msg: "vi>>", //$NON-NLS-0$
 					invoke: function () {
@@ -753,7 +768,7 @@ define("orion/editor/vi", [ //$NON-NLS-0$
 					}
 		}]);
 		
-		this.deindentMode = new PrefixMode(textView, this, "<", [{ //$NON-NLS-0$ // TODO
+		this.deindentMode = new PrefixMode(textView, this, this, "<", [{ //$NON-NLS-0$
 					key: "<", //$NON-NLS-0$:
 					msg: "vi<<", //$NON-NLS-0$
 					invoke: function () {
